@@ -1,0 +1,344 @@
+openapi: 3.0.3
+info:
+  title: P+R Abo v1.1
+  description: |-
+    This is a sample P+R Abo based on the OpenAPI 3.0 specification. 
+    
+    You can find out more about
+    Swagger at [https://swagger.io](https://swagger.io). In the third iteration of the pet store, we've switched to the design first approach!
+  termsOfService: http://swagger.io/terms/
+  contact:
+    email: apiteam@swagger.io
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  version: 1.0.11
+externalDocs:
+  description: Find out more about Swagger
+  url: http://swagger.io
+servers:
+  - url: https://petstore3.swagger.io/api/v3
+tags:
+  - name: parking
+    description: Parking facilities inventory
+    externalDocs:
+      description: Find out more
+      url: http://swagger.io
+  - name: approval
+    description: Vaud Approval for ticket sales.
+    externalDocs:
+      description: Find out more
+      url: http://swagger.io
+paths:
+  /parking/query:
+    get:
+      tags:
+        - parking
+      summary: Queries managed parking facilities
+      description: Returns a list of matching parking. With no attribute, this return the list of all managed parkings
+      operationId: getParking
+      parameters:
+        - name: attribute
+          in: query
+          description: Parking attribute to query
+          schema:
+            type: string
+            enum:
+              - acvFacilityId
+              - cffFacilityId
+              - ofsId
+              - name
+        - name: value
+          in: query
+          description: value of the attribute
+          schema:
+             type: string
+      responses:
+        '200':
+          description: returns the parking facilities matching query
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Parking' 
+      security:
+        - prabo_auth:
+            - cff:prabo
+            - manager:prabo
+            - admin:prabo
+  /parking/{acvFacilityId}/contingent:
+    get:
+      tags:
+        - parking
+      summary: Admin - Queries facility contingent
+      description: Returns contingent information matching parking.
+      operationId: getContingent
+      parameters:
+        - name: acvFacilityId
+          in: path
+          description: parking ID of the contingent to be updated
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: returns the parking facilities matching query
+          content:
+            application/json:
+              schema:
+                  $ref: '#/components/schemas/Contingent' 
+        '404':
+          description: Invalid parkingId supplied
+      security:
+        - prabo_auth:
+            - admin:prabo
+    post:
+      tags:
+        - parking
+      summary: Admin - Adds capacity incrementing quota
+      description: Update contingent.
+      operationId: updateContingent
+      parameters:
+        - name: acvFacilityId
+          in: path
+          description: ID of the parking facility
+          required: true
+          schema:
+            type: integer
+            format: int64
+        - name: quotaId
+          in: query
+          description: quotaID to increment
+          schema:
+             type: integer
+             default: 5
+             minimum: 1
+             maximum: 5
+      responses:
+        '200':
+          description: contingent incremented successfully
+          content:
+            application/json:
+              schema:
+                  $ref: '#/components/schemas/Contingent' 
+        '404':
+          description: Invalid parkingId supplied
+      security:
+        - prabo_auth:
+            - admin:prabo
+  /approval:
+    put:
+      tags:
+        - approval
+      summary: Manager - Creates an approval request for given parking facility
+      description: Creates an approval request with given parking facility id and type
+      operationId: createApproval
+      requestBody:
+        description: Creates an approval request
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApprovalReq'
+        required: true
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                type: integer
+                example: 1234
+        '400':
+          description: Invalid Request ID supplied
+        '404':
+          description: Validity range exception
+        '405':
+          description: Validation exception
+      security:
+        - prabo_auth:
+            - manager:prabo
+            - cff:prabo
+  /approval/{approvalId}:
+    post:
+      tags:
+        - approval
+      summary: Manager - Confirms or Cancels an approval after sale during approval period
+      description: Confirms a pending approval after sale - will raise an error if tieme-out has occured.
+      operationId: confirmApproval
+      parameters:
+        - name: approvalId
+          in: path
+          required: true
+          description: approvalId to confirm
+          schema:
+            type: integer
+            format: int64
+        - name: confirmation
+          in: query
+          description: confirms or cancels approval - confirms approval if not specified
+          schema:
+            type: boolean
+            default: true
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Approval'
+        '405':
+          description: Invalid input
+      security:
+        - prabo_auth:
+            - manager:prabo
+            - cff:prabo
+components:
+  schemas:
+    ParkingReq:
+      type: object
+      properties:
+        name:
+          type: string
+        cffFacilityId:
+          type: string
+        ofsId:
+          type: string
+        address:
+          $ref: '#/components/schemas/Address'
+        capacity:
+          type: integer
+          example: 10
+    Parking:
+      type: object
+      properties:
+        name:
+          type: string
+        acvFacilityid:
+          type: string
+        cffFacilityId:
+          type: string
+        ofsId:
+          type: string
+        address:
+          $ref: '#/components/schemas/Address'
+        capacity:
+          type: integer
+          example: 10
+        creationDate:
+          type: string
+          format: date-time  
+        endDate:
+          type: string
+          format: date-time
+          example: null
+    Address:
+      type: object
+      properties:
+        street:
+          type: string
+          example: Longemalle 6
+        town:
+          type: string
+          example: Renens
+        zip:
+          type: integer
+          example: 94301
+      xml:
+        name: address
+    ApprovalReq:
+      required:
+        - requestId
+        - parkingId
+        - address
+        - validFrom
+        - validTo
+      type: object
+      properties:
+        requestId:
+          type: string
+          example: aaa2349d-5717-4562-b3fc-2c963f66afa6
+        parkingId:
+          type: string
+          example: bn49d-5717
+        parkingIdType:
+          type: string
+          enum:
+              - cffFacilityId
+              - acvFacilityId
+          example: cffFacilityId
+        validFrom:
+          type: string
+          format: date-time
+        validTo:
+          type: string
+          format: date-time
+        freeContingent:
+          type: integer
+      xml:
+        name: approvalReq
+    Approval:
+      allOf:
+        - $ref: '#/components/schemas/ApprovalReq'
+      type: object
+      properties:
+        approvalId:
+          type: integer
+          format: int64
+          example: 10
+        confirmed:
+          type: string
+          format: date-time
+        freeContingent:
+          type: integer
+      xml:
+        name: approval
+    Contingent:
+      type: object
+      properties:
+        parkingId:
+          type: integer
+          format: int64
+          example: 1232
+        capacity:
+          type: integer
+        occupation:
+          type: integer
+        quota1:
+          $ref: '#/components/schemas/Quota'
+        quota2:
+          $ref: '#/components/schemas/Quota'
+        quota3:
+          $ref: '#/components/schemas/Quota'
+        quota4:
+          $ref: '#/components/schemas/Quota'
+        quota5:
+          $ref: '#/components/schemas/Quota'
+    Quota:
+      type: object
+      properties:
+        quantity:
+          type: integer
+        occupation:
+          type: integer
+  requestBodies:
+    Parking:
+      description: Parking object that needs to be updated
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Parking'
+  securitySchemes:
+    prabo_auth:
+      type: oauth2
+      flows:
+        implicit:
+          authorizationUrl: https://petstore3.swagger.io/oauth/authorize
+          scopes:
+            admin:prabo: admin scope
+            manager:prabo: facility manager scope
+            cff:prabo: cff p+r client
+    api_key:
+      type: apiKey
+      name: api_key
+      in: header
